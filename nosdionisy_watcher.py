@@ -1,10 +1,9 @@
 import requests
 from bs4 import BeautifulSoup
 import os
-import textwrap
 
 BLOG_URL = "https://nosdionisy.com/blog"
-WEBHOOK_URL = "https://discord.com/api/webhooks/1423962434426769511/6UCWwp_L4-KApsmPPgy3cWA7Yn7UbUTN4hrm3kbBazENlmbmVa_umj2PWW1w5Sc5i6je"  # vlož sem tu svou URL
+WEBHOOK_URL = "https://discord.com/api/webhooks/1423962434426769511/6UCWwp_L4-KApsmPPgy3cWA7Yn7UbUTN4hrm3kbBazENlmbmVa_umj2PWW1w5Sc5i6je"
 NEWS_FILE = "last_news.txt"
 
 def get_last_news():
@@ -17,76 +16,50 @@ def save_news(content):
     with open(NEWS_FILE, "w", encoding="utf-8") as f:
         f.write(content.strip())
 
-def extract_last_article():
+def extract_article():
     response = requests.get(BLOG_URL)
     if response.status_code != 200:
-        print("❌ Error fetching blog page:", response.status_code)
-        return None, None
+        print("Error fetching the blog page.")
+        return None
 
     soup = BeautifulSoup(response.text, "html.parser")
 
-    # najdeme první článek na blogu
-    article_link = soup.find("a", href=True)
-    if not article_link:
-        print("❌ No article link found.")
-        return None, None
+    # Najdi hlavní obsah článku
+    content_div = soup.find("div", class_="content")
+    if not content_div:
+        print("No content found.")
+        return None
 
-    article_url = article_link["href"]
-    if not article_url.startswith("http"):
-        article_url = "https://nosdionisy.com" + article_url
-
-    article_page = requests.get(article_url)
-    if article_page.status_code != 200:
-        print("❌ Error fetching article page:", article_page.status_code)
-        return None, None
-
-    article_soup = BeautifulSoup(article_page.text, "html.parser")
-
-    title_tag = article_soup.find("h1")
+    title_tag = content_div.find("h1")
     title = title_tag.text.strip() if title_tag else "Untitled"
 
-    paragraphs = article_soup.find_all("p")
-    body = "\n".join(p.get_text(strip=True) for p in paragraphs if p.get_text(strip=True))
+    paragraphs = content_div.find_all("p")
+    body = "\n".join(p.text.strip() for p in paragraphs if p.text.strip())
 
-    full_text = f"{body}"
-    return article_url, title, full_text
+    full_text = f"{title}\n\n{body}"
+    return full_text
 
-def send_to_discord(title, url, body):
-    # Discord embed má limit 6000 znaků celkem, 2000 na pole
-    chunks = textwrap.wrap(body, 1900, replace_whitespace=False)
-
-    for i, chunk in enumerate(chunks, 1):
-        embed = {
-            "title": title if i == 1 else f"{title} (část {i})",
-            "url": url,
-            "description": chunk,
-            "color": 0x3498db
-        }
-
-        payload = {"embeds": [embed]}
-        response = requests.post(WEBHOOK_URL, json=payload)
-
-        print(f"📤 Sending embed {i} → status {response.status_code}")
-        if response.status_code not in (200, 204):
-            print("❌ Error response:", response.text)
-            return False
-    return True
+def send_to_discord(message):
+    payload = {
+        "content": f"📰 **New Blog Post**\n\n{message[:1900]}"  # Discord limit is 2000 chars
+    }
+    response = requests.post(WEBHOOK_URL, json=payload)
+    return response.status_code == 204
 
 def check_blog():
-    article_url, title, article = extract_last_article()
+    article = extract_article()
     if not article:
-        print("❌ No article extracted.")
         return
 
     last_news = get_last_news()
-    if article_url != last_news:
-        if send_to_discord(title, article_url, article):
-            print("✅ New article sent to Discord.")
-            save_news(article_url)
+    if article != last_news:
+        if send_to_discord(article):
+            print("New article sent to Discord.")
+            save_news(article)
         else:
-            print("❌ Failed to send message to Discord.")
+            print("Failed to send message to Discord.")
     else:
-        print("ℹ️ No new article detected.")
+        print("No new article detected.")
 
 if __name__ == "__main__":
     check_blog()
