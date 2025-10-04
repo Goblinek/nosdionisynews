@@ -23,16 +23,18 @@ def extract_article():
         return None
 
     soup = BeautifulSoup(response.text, "html.parser")
-    article = soup.find("article") or soup.find("div", class_="blog-post") or soup.find("div", class_="post")
 
-    if not article:
-        print("No article found.")
+    # Try to find the first blog post container
+    post = soup.find("div", class_="blog-post") or soup.find("div", class_="post") or soup.find("article")
+    if not post:
+        print("No blog post found.")
         return None
 
-    title_tag = article.find("h1") or article.find("h2")
+    # Extract title and content
+    title_tag = post.find("h1") or post.find("h2") or post.find("h3")
     title = title_tag.text.strip() if title_tag else "Untitled"
 
-    paragraphs = article.find_all("p")
+    paragraphs = post.find_all("p")
     content = "\n".join(p.text.strip() for p in paragraphs if p.text.strip())
 
     full_text = f"{title}\n\n{content}"
