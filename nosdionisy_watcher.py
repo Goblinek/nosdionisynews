@@ -24,25 +24,24 @@ def extract_article():
 
     soup = BeautifulSoup(response.text, "html.parser")
 
-    # Try to find the first blog post container
-    post = soup.find("div", class_="blog-post") or soup.find("div", class_="post") or soup.find("article")
-    if not post:
-        print("No blog post found.")
+    # Najdi hlavní obsah článku
+    content_div = soup.find("div", class_="content")
+    if not content_div:
+        print("No content found.")
         return None
 
-    # Extract title and content
-    title_tag = post.find("h1") or post.find("h2") or post.find("h3")
+    title_tag = content_div.find("h1")
     title = title_tag.text.strip() if title_tag else "Untitled"
 
-    paragraphs = post.find_all("p")
-    content = "\n".join(p.text.strip() for p in paragraphs if p.text.strip())
+    paragraphs = content_div.find_all("p")
+    body = "\n".join(p.text.strip() for p in paragraphs if p.text.strip())
 
-    full_text = f"{title}\n\n{content}"
+    full_text = f"{title}\n\n{body}"
     return full_text
 
 def send_to_discord(message):
     payload = {
-        "content": f"📰 **New Blog Post**\n\n{message[:1900]}"  # Discord max is 2000 chars
+        "content": f"📰 **New Blog Post**\n\n{message[:1900]}"  # Discord limit is 2000 chars
     }
     response = requests.post(WEBHOOK_URL, json=payload)
     return response.status_code == 204
